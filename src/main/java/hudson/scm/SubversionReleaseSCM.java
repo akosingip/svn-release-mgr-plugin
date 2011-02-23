@@ -13,6 +13,8 @@ import hudson.Functions;
 import hudson.model.AbstractBuild;
 import hudson.model.AbstractProject;
 import hudson.model.BuildListener;
+import hudson.model.Cause;
+import hudson.model.CauseAction;
 import hudson.model.Hudson;
 import hudson.model.ParameterValue;
 import hudson.model.ParametersAction;
@@ -420,6 +422,7 @@ public class SubversionReleaseSCM extends SCM implements Serializable {
         private final ModuleLocation[] locations;
         //TODO Added by JSP for building specific revision
         private String revision;
+        private AbstractBuild build;
 
         public CheckOutTask(AbstractBuild<?, ?> build, SubversionReleaseSCM parent, Date timestamp, boolean update, TaskListener listener) {
             this.authProvider = parent.getDescriptor().createAuthenticationProvider();
@@ -429,8 +432,34 @@ public class SubversionReleaseSCM extends SCM implements Serializable {
             this.locations = parent.getLocations(build);
             //TODO Added by JSP for building specific revision
             this.revision = build.getEnvVars().get("REVISION");
+            this.build = build;
         }
 
+        private boolean checkIfHasSameRevAsPrev(AbstractBuild build, ISVNAuthenticationProvider authProvider) {
+            if ((build.getPreviousCompletedBuild() != null)) {
+                try {
+                    Map.Entry parsedInfo = parseRevisionFile((AbstractBuild) build.getPreviousCompletedBuild()).entrySet().iterator().next();
+                    SvnInfo previnfo = new SvnInfo((String) parsedInfo.getKey(), (Long) parsedInfo.getValue());
+                    SVNURL myurl = null;
+                    for (final ModuleLocation l : locations) {
+                        myurl = l.getSVNURL();
+                    }
+                    SvnInfo currentinfo = new SvnInfo(parseSvnInfo(myurl, authProvider));
+                    Cause c = (Cause)(((CauseAction)build.getAction(CauseAction.class)).getCauses().get(0));
+
+                    if (currentinfo.equals(previnfo) && (c.getShortDescription().startsWith("Started by remote host"))) {
+                            return true;
+                    }
+
+                } catch (SVNException ex) {
+                    Logger.getLogger(SubversionReleaseSCM.class.getName()).log(Level.SEVERE, null, ex);
+                } catch (IOException ex) {
+                    Logger.getLogger(SubversionReleaseSCM.class.getName()).log(Level.SEVERE, null, ex);
+                    return true;
+                }
+            }
+            return false;
+        }
         public List<External> invoke(File ws, VirtualChannel channel) throws IOException {
             final SVNClientManager manager = createSvnClientManager(authProvider);
             try {
@@ -476,6 +505,10 @@ public class SubversionReleaseSCM extends SCM implements Serializable {
                         }
                     }
                 } else {
+                    if (checkIfHasSameRevAsPrev(build, authProvider)) {
+                        build.addAction(new SameRevisionAction("TRUE"));
+                        return null;
+                    }
                     Util.deleteContentsRecursive(ws);
 
                     // buffer the output by a separate thread so that the update operation
