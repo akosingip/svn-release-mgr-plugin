@@ -445,10 +445,10 @@ public class SubversionReleaseSCM extends SCM implements Serializable {
                         myurl = l.getSVNURL();
                     }
                     SvnInfo currentinfo = new SvnInfo(parseSvnInfo(myurl, authProvider));
-                    Cause c = (Cause)(((CauseAction)build.getAction(CauseAction.class)).getCauses().get(0));
+                    Cause c = build.getAction(CauseAction.class).getCauses().iterator().next();
 
-                    if (currentinfo.equals(previnfo) && (c.getShortDescription().startsWith("Started by remote host"))) {
-                            return true;
+                    if (currentinfo.equals(previnfo) && (c instanceof Cause.RemoteCause)) {
+                        return true;
                     }
 
                 } catch (SVNException ex) {
