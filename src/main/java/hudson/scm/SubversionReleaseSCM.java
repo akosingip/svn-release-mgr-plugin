@@ -186,7 +186,6 @@ public class SubversionReleaseSCM extends SCM implements Serializable {
     public ModuleLocation[] getLocations() {
     	return getLocations(null);
     }
-    
     /**
      * list of all configured svn locations, expanded according to 
      * build parameters values;
@@ -422,7 +421,7 @@ public class SubversionReleaseSCM extends SCM implements Serializable {
         private final ModuleLocation[] locations;
         //TODO Added by JSP for building specific revision
         private String revision;
-        private AbstractBuild build;
+        private boolean isSameRevision;
 
         public CheckOutTask(AbstractBuild<?, ?> build, SubversionReleaseSCM parent, Date timestamp, boolean update, TaskListener listener) {
             this.authProvider = parent.getDescriptor().createAuthenticationProvider();
@@ -432,8 +431,9 @@ public class SubversionReleaseSCM extends SCM implements Serializable {
             this.locations = parent.getLocations(build);
             //TODO Added by JSP for building specific revision
             this.revision = build.getEnvVars().get("REVISION");
-            this.build = build;
+            this.isSameRevision = checkIfHasSameRevAsPrev(build, authProvider);
         }
+
 
         private boolean checkIfHasSameRevAsPrev(AbstractBuild build, ISVNAuthenticationProvider authProvider) {
             if ((build.getPreviousCompletedBuild() != null)) {
@@ -447,7 +447,7 @@ public class SubversionReleaseSCM extends SCM implements Serializable {
                     SvnInfo currentinfo = new SvnInfo(parseSvnInfo(myurl, authProvider));
                     Cause c = build.getAction(CauseAction.class).getCauses().iterator().next();
 
-                    if (currentinfo.equals(previnfo) && (c instanceof Cause.RemoteCause)) {
+                    if (currentinfo.equals(previnfo) && (c instanceof Cause.RemoteCause)) {build.addAction(new SameRevisionAction("TRUE"));
                         return true;
                     }
 
@@ -505,10 +505,8 @@ public class SubversionReleaseSCM extends SCM implements Serializable {
                         }
                     }
                 } else {
-                    if (checkIfHasSameRevAsPrev(build, authProvider)) {
-                        build.addAction(new SameRevisionAction("TRUE"));
+                    if (isSameRevision)
                         return null;
-                    }
                     Util.deleteContentsRecursive(ws);
 
                     // buffer the output by a separate thread so that the update operation
