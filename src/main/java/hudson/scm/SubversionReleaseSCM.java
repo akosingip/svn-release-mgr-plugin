@@ -94,6 +94,7 @@ import java.util.Hashtable;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.NoSuchElementException;
 import java.util.Random;
 import java.util.StringTokenizer;
 import java.util.logging.Level;
@@ -450,7 +451,9 @@ public class SubversionReleaseSCM extends SCM implements Serializable {
                     if (currentinfo.equals(previnfo) && (c instanceof Cause.RemoteCause)) {build.addAction(new SameRevisionAction("TRUE"));
                         return true;
                     }
-
+                } catch (NoSuchElementException ex) {
+                    Logger.getLogger(SubversionReleaseSCM.class.getName()).log(Level.SEVERE, null, ex);
+                    return false;
                 } catch (SVNException ex) {
                     Logger.getLogger(SubversionReleaseSCM.class.getName()).log(Level.SEVERE, null, ex);
                 } catch (IOException ex) {
@@ -505,8 +508,12 @@ public class SubversionReleaseSCM extends SCM implements Serializable {
                         }
                     }
                 } else {
-                    if (isSameRevision)
+                    if (isSameRevision) {
+                        listener.getLogger().println(" ***************************************************");
+                        listener.getLogger().println(" ** FAILURE DUE TO SAME REVISION AS OF LAST BUILD.**");
+                        listener.getLogger().println(" ***************************************************");
                         return null;
+                    }
                     Util.deleteContentsRecursive(ws);
 
                     // buffer the output by a separate thread so that the update operation
